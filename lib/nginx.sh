@@ -4,7 +4,8 @@
 # Nginx 配置和 SSL 证书管理函数库
 # ===========================================
 
-source "$(dirname "$0")"/utils.sh
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$LIB_DIR/utils.sh"
 
 # ============================ Nginx配置函数 ============================
 

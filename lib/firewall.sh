@@ -4,7 +4,9 @@
 # 防火墙配置函数库
 # ===========================================
 
-source "$(dirname "$0")"/utils.sh
+# 自动检测 lib 目录位置
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$LIB_DIR/utils.sh"
 
 # ============================ iptables统一管理 ============================
 
@@ -135,21 +137,21 @@ delete_iptables_rule() {
     
     while true; do
         local post_line_num=$(iptables -t nat -L POSTROUTING -n --line-numbers | \
-                           grep "$comment" | head -1 | awk \'{print $1}\' 2>/dev/null)
+                           grep "$comment" | head -1 | awk '{print $1}' 2>/dev/null)
         [ -z "$post_line_num" ] && break
         iptables -t nat -D POSTROUTING $post_line_num 2>/dev/null
     done
     
     while true; do
         local nat_line_num=$(iptables -t nat -L $IPTABLES_CHAIN_NAT -n --line-numbers | \
-                           grep "$comment" | head -1 | awk \'{print $1}\' 2>/dev/null)
+                           grep "$comment" | head -1 | awk '{print $1}' 2>/dev/null)
         [ -z "$nat_line_num" ] && break
         iptables -t nat -D $IPTABLES_CHAIN_NAT $nat_line_num 2>/dev/null
     done
     
     while true; do
         local fwd_line_num=$(iptables -L $IPTABLES_CHAIN -n --line-numbers | \
-                           grep "$comment" | head -1 | awk \'{print $1}\' 2>/dev/null)
+                           grep "$comment" | head -1 | awk '{print $1}' 2>/dev/null)
         [ -z "$fwd_line_num" ] && break
         iptables -D $IPTABLES_CHAIN $fwd_line_num 2>/dev/null
     done
