@@ -4,14 +4,18 @@
 # 公共工具函数库
 # ===========================================
 
+# 防止重复加载
+[ -n "$UTILS_LOADED" ] && return
+UTILS_LOADED=1
+
 # 颜色定义
-readonly RED='\033[0;31m'
-readonly GREEN='\033[0;32m'
-readonly YELLOW='\033[1;33m'
-readonly BLUE='\033[0;34m'
-readonly CYAN='\033[0;36m'
-readonly MAGENTA='\033[0;35m'
-readonly NC='\033[0m' # No Color
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m' # No Color
 
 # 全局配置
 CONFIG_DIR="/etc/wg-relay"
@@ -212,7 +216,7 @@ print_color() {
     echo -e "${color}${text}${NC}"
 }
 
-# ============================ 卸载函数 ============================
+# ============================ 卸载辅助函数 ============================
 
 cleanup_iptables_rules() {
     info "清理iptables规则..."
@@ -250,6 +254,8 @@ remove_files_and_dirs() {
     rm -f /var/log/wg-relay*.log
     (crontab -l 2>/dev/null | grep -v "wg-relay\|renew-wg-relay-cert") | crontab - 2>/dev/null || true
 }
+
+# ============================ 卸载主函数 ============================
 
 uninstall() {
     clear
