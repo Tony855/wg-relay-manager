@@ -277,7 +277,7 @@ configure_system_params() {
     if [ "$updates" = "{}" ]; then
         info "没有检测到修改，取消更新。"
         return 0
-    }
+    fi
 
     update_config_file "$updates"
     info "系统参数更新成功。"

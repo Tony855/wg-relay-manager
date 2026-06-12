@@ -4,7 +4,8 @@
 # Web 应用部署函数库
 # ===========================================
 
-source "$(dirname "$0")"/utils.sh
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$LIB_DIR/utils.sh"
 
 # ============================ Web管理界面 ============================
 
@@ -20,7 +21,7 @@ create_web_app_files() {
     mkdir -p $WEB_DIR/templates $WEB_DIR/static/css $WEB_DIR/static/js $WEB_DIR/static/img
     
     # 创建 app.py
-    cat > $WEB_DIR/app.py << \'EOF\'
+    cat > $WEB_DIR/app.py << 'EOF'
 import os
 import json
 import time
@@ -1854,6 +1855,7 @@ EOF
 
 start_web_service() {
     info "启动Web管理界面服务..."
+    systemctl enable wg-relay-web
     systemctl start wg-relay-web
     sleep 2
     if systemctl is-active --quiet wg-relay-web; then
@@ -1863,10 +1865,32 @@ start_web_service() {
     fi
 }
 
+start_web_app() {
+    start_web_service
+}
+
+stop_web_app() {
+    info "停止 Web 管理界面服务..."
+    systemctl stop wg-relay-web || true
+}
+
+restart_web_app() {
+    info "重启 Web 管理界面服务..."
+    systemctl restart wg-relay-web
+}
+
+remove_systemd_services() {
+    info "移除 systemd 服务..."
+    systemctl stop wg-relay-web || true
+    systemctl disable wg-relay-web || true
+    rm -f /etc/systemd/system/wg-relay-web.service
+    systemctl daemon-reload
+}
+
 create_management_scripts() {
     info "创建管理脚本..."
     # 创建 wg-relay 主管理脚本
-    cat > /usr/local/bin/wg-relay << \'EOF\'
+    cat > /usr/local/bin/wg-relay << 'EOF'
 #!/bin/bash
 
 # ===========================================
@@ -1934,11 +1958,11 @@ case "$1" in
         exit 1
         ;;
 esac
-\'EOF\'
+EOF
     chmod +x /usr/local/bin/wg-relay
 
     # 创建 wg-relay-stats 脚本
-    cat > /usr/local/bin/wg-relay-stats << \'EOF\'
+    cat > /usr/local/bin/wg-relay-stats << 'EOF'
 #!/usr/bin/python3
 
 import json
@@ -2057,12 +2081,13 @@ def main():
 
 if __name__ == "__main__":
     main()
-\'EOF\'
+EOF
     chmod +x /usr/local/bin/wg-relay-stats
 }
 
 start_web_service() {
     info "启动Web管理界面服务..."
+    systemctl enable wg-relay-web
     systemctl start wg-relay-web
     sleep 2
     if systemctl is-active --quiet wg-relay-web; then
@@ -2070,4 +2095,26 @@ start_web_service() {
     else
         error "Web管理界面服务启动失败，请检查日志: journalctl -u wg-relay-web -n 20"
     fi
+}
+
+start_web_app() {
+    start_web_service
+}
+
+stop_web_app() {
+    info "停止 Web 管理界面服务..."
+    systemctl stop wg-relay-web || true
+}
+
+restart_web_app() {
+    info "重启 Web 管理界面服务..."
+    systemctl restart wg-relay-web
+}
+
+remove_systemd_services() {
+    info "移除 systemd 服务..."
+    systemctl stop wg-relay-web || true
+    systemctl disable wg-relay-web || true
+    rm -f /etc/systemd/system/wg-relay-web.service
+    systemctl daemon-reload
 }

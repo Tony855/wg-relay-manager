@@ -4,7 +4,8 @@
 # 用户输入和参数解析函数库
 # ===========================================
 
-source "$(dirname "$0")"/utils.sh
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$LIB_DIR/utils.sh"
 
 # ============================ 参数解析函数 ============================
 
@@ -266,4 +267,26 @@ EOF
             exit 0
         }
     }
+}
+
+read_input() {
+    local prompt=$1
+    local var_name=$2
+    local default_val=$3
+    local input_val
+    
+    if [ -n "$default_val" ]; then
+        read -p "$prompt [$default_val]: " input_val
+        [ -z "$input_val" ] && eval "$var_name=\"$default_val\"" || eval "$var_name=\"$input_val\""
+    else
+        read -p "$prompt: " input_val
+        eval "$var_name=\"$input_val\""
+    fi
+}
+
+confirm_action() {
+    local prompt=$1
+    local confirm
+    read -p "$prompt" confirm
+    [[ "$confirm" == "y" || "$confirm" == "Y" ]]
 }

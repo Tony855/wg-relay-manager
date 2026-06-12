@@ -4,7 +4,9 @@
 # 配置创建和管理函数库
 # ===========================================
 
-source "$(dirname "$0")"/utils.sh
+# 自动检测 lib 目录位置
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$LIB_DIR/utils.sh"
 
 # ============================ 系统配置函数 ============================
 
@@ -74,7 +76,36 @@ create_main_config() {
     "created_at": "$(date -Iseconds)",
     "status": "active",
     "version": "$SCRIPT_VERSION",
-    "iptables_chain": "$IPTABLES_CHAIN"
+    "iptables_chain": "$IPTABLES_CHAIN",
+    "next_rule_id": 1
 }
 EOF
+}
+
+load_config_from_file() {
+    if [ -f "$CONFIG_FILE" ]; then
+        RELAY_NAME=$(jq -r ".relay_name" "$CONFIG_FILE")
+        PUBLIC_IP=$(jq -r ".public_ip" "$CONFIG_FILE")
+        PUBLIC_INTERFACE=$(jq -r ".public_interface" "$CONFIG_FILE")
+    fi
+}
+
+update_config_file() {
+    local updates=$1
+    if [ -f "$CONFIG_FILE" ]; then
+        local tmp_file=$(mktemp)
+        jq ". + $updates" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
+    fi
+}
+
+get_next_rule_id_from_config() {
+    local next_id=$(jq -r ".next_rule_id" "$CONFIG_FILE")
+    local new_next_id=$((next_id + 1))
+    local tmp_file=$(mktemp)
+    jq ".next_rule_id = $new_next_id" "$CONFIG_FILE" > "$tmp_file" && mv "$tmp_file" "$CONFIG_FILE"
+    echo "$next_id"
+}
+
+setup_sysctl() {
+    configure_kernel
 }

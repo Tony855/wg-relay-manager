@@ -111,7 +111,7 @@ configure_nginx_ssl_site() {
 }
 
 create_ssl_params_snippet() {
-    cat > /etc/nginx/snippets/ssl-params.conf << \'EOF\'
+    cat > /etc/nginx/snippets/ssl-params.conf << 'EOF'
 ssl_protocols TLSv1.2 TLSv1.3;
 ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
 ssl_prefer_server_ciphers off;
@@ -247,7 +247,7 @@ obtain_letsencrypt_cert() {
         DOMAIN_NAME="$safe_domain"
     fi
     local safe_email
-    safe_email=$(echo "$EMAIL_ADDRESS" | tr -cd \'a-zA-Z0-9.@_+-\')
+    safe_email=$(echo "$EMAIL_ADDRESS" | tr -cd 'a-zA-Z0-9.@_+-')
     
     if ss -tlpn 2>/dev/null | grep -q \':80 \'; then
         warn "端口80已被占用，无法使用standalone模式，尝试使用webroot模式"
@@ -295,4 +295,14 @@ create_cert_renewal_cron() {
     info "创建SSL证书自动续期任务..."
     (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --nginx --quiet && systemctl reload nginx") | crontab -
     success "SSL证书自动续期任务已创建"
+}
+
+setup_nginx_and_ssl() {
+    configure_nginx_ssl
+}
+
+disable_nginx_proxy() {
+    info "禁用 Nginx 代理配置..."
+    rm -f "$NGINX_CONF_DIR/wg-relay.conf"
+    systemctl reload nginx || true
 }

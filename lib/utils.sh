@@ -14,23 +14,23 @@ readonly MAGENTA='\033[0;35m'
 readonly NC='\033[0m' # No Color
 
 # 全局配置
-readonly CONFIG_DIR="/etc/wg-relay"
-readonly RULES_DIR="$CONFIG_DIR/rules"
-readonly LOCK_FILE="$CONFIG_DIR/.lock"
-readonly WEB_DIR="/etc/wg-relay-web"
-readonly NGINX_CONF_DIR="/etc/nginx/conf.d"
-readonly CERT_DIR="/etc/ssl/wg-relay"
-readonly LOG_FILE="/var/log/wg-relay.log"
-readonly SERVICE_NAME="wg-relay"
-readonly WEB_SERVICE_NAME="wg-relay-web"
-readonly RULE_MANAGER_NAME="wg-rule-manager"
-readonly SCRIPT_VERSION="1.1.0"
-readonly WEB_PORT="8080"
-readonly NGINX_PORT="80"
-readonly SSL_PORT="443"
-readonly IPTABLES_CHAIN="WG_RELAY"
-readonly IPTABLES_CHAIN_NAT="WG_RELAY_NAT"
-readonly RULE_COMMENT_PREFIX="WG_RELAY_RULE"
+CONFIG_DIR="/etc/wg-relay"
+RULES_DIR="$CONFIG_DIR/rules"
+LOCK_FILE="$CONFIG_DIR/.lock"
+WEB_DIR="/etc/wg-relay-web"
+NGINX_CONF_DIR="/etc/nginx/conf.d"
+CERT_DIR="/etc/ssl/wg-relay"
+LOG_FILE="/var/log/wg-relay.log"
+SERVICE_NAME="wg-relay"
+WEB_SERVICE_NAME="wg-relay-web"
+RULE_MANAGER_NAME="wg-rule-manager"
+SCRIPT_VERSION="1.1.0"
+WEB_PORT="8080"
+NGINX_PORT="80"
+SSL_PORT="443"
+IPTABLES_CHAIN="WG_RELAY"
+IPTABLES_CHAIN_NAT="WG_RELAY_NAT"
+RULE_COMMENT_PREFIX="WG_RELAY_RULE"
 
 # 全局变量 (在主脚本中初始化，这里只声明)
 WEB_USER="admin"
@@ -200,7 +200,56 @@ show_completion() {
     echo -e ""
 }
 
+show_welcome_message() {
+    echo -e "${GREEN}======================================================${NC}"
+    echo -e "${GREEN}  欢迎使用 WireGuard 多中继增强管理系统${NC}"
+    echo -e "${GREEN}======================================================${NC}"
+}
+
+print_color() {
+    local color=$1
+    local text=$2
+    echo -e "${color}${text}${NC}"
+}
+
 # ============================ 卸载函数 ============================
+
+cleanup_iptables_rules() {
+    info "清理iptables规则..."
+    while iptables -t nat -C PREROUTING -j WG_RELAY_NAT 2>/dev/null; do
+        iptables -t nat -D PREROUTING -j WG_RELAY_NAT
+    done
+
+    mapfile -t lines < <(
+        iptables -t nat -L POSTROUTING -n --line-numbers | \
+        grep "WG_RELAY_RULE" | awk '{print $1}' | sort -r
+    )
+
+    for line_num in "${lines[@]}"; do
+        iptables -t nat -D POSTROUTING "$line_num" 2>/dev/null
+    done
+
+    iptables -t nat -F WG_RELAY_NAT 2>/dev/null
+    iptables -t nat -X WG_RELAY_NAT 2>/dev/null
+    while iptables -C FORWARD -j WG_RELAY 2>/dev/null; do
+        iptables -D FORWARD -j WG_RELAY
+    done
+    iptables -F WG_RELAY 2>/dev/null
+    iptables -X WG_RELAY 2>/dev/null
+}
+
+remove_files_and_dirs() {
+    info "移除项目文件和目录..."
+    for dir in /etc/wg-relay /etc/wg-relay-web /etc/ssl/wg-relay; do
+        [ -d "$dir" ] && rm -rf "$dir"
+    done
+    for script in /usr/local/bin/wg-relay /usr/local/bin/wg-relay-stats /usr/local/bin/wg-rule-manager; do
+        [ -f "$script" ] && rm -f "$script"
+    done
+    rm -f /etc/nginx/conf.d/wg-relay.conf
+    rm -f /var/log/wg-relay*.log
+    (crontab -l 2>/dev/null | grep -v "wg-relay\|renew-wg-relay-cert") | crontab - 2>/dev/null || true
+}
 
 uninstall() {
     clear
@@ -216,65 +265,12 @@ uninstall() {
     }
 
     info "开始卸载..."
-
-    systemctl stop "$WEB_SERVICE_NAME" 2>/dev/null && echo "已停止服务: $WEB_SERVICE_NAME"
-    systemctl disable "$WEB_SERVICE_NAME" 2>/dev/null && echo "已禁用服务: $WEB_SERVICE_NAME"
-    systemctl stop "$SERVICE_NAME" 2>/dev/null && echo "已停止服务: $SERVICE_NAME"
-    systemctl disable "$SERVICE_NAME" 2>/dev/null && echo "已禁用服务: $SERVICE_NAME"
-    systemctl stop nginx 2>/dev/null && echo "已停止服务: nginx"
-    systemctl disable nginx 2>/dev/null && echo "已禁用服务: nginx"
-
-    echo "清理iptables规则..."
-
-    while iptables -t nat -C PREROUTING -j WG_RELAY_NAT 2>/dev/null; do
-        iptables -t nat -D PREROUTING -j WG_RELAY_NAT
-    done
-
-    echo "清理POSTROUTING中的WG_RELAY_RULE MASQUERADE规则..."
-    mapfile -t lines < <(
-        iptables -t nat -L POSTROUTING -n --line-numbers | \
-        grep "WG_RELAY_RULE" | awk '{print $1}' | sort -r
-    )
-
-    for line_num in "${lines[@]}"; do
-        iptables -t nat -D POSTROUTING "$line_num" 2>/dev/null && \
-            echo "已删除 POSTROUTING 规则行号: $line_num"
-    done
-
-    iptables -t nat -F WG_RELAY_NAT 2>/dev/null && echo "已清空NAT链: WG_RELAY_NAT"
-    iptables -t nat -X WG_RELAY_NAT 2>/dev/null && echo "已删除NAT链: WG_RELAY_NAT"
-
-    while iptables -C FORWARD -j WG_RELAY 2>/dev/null; do
-        iptables -D FORWARD -j WG_RELAY
-    done
-
-    iptables -F WG_RELAY 2>/dev/null && echo "已清空链: WG_RELAY"
-    iptables -X WG_RELAY 2>/dev/null && echo "已删除链: WG_RELAY"
-
-    for dir in /etc/wg-relay /etc/wg-relay-web /etc/ssl/wg-relay; do
-        [ -d "$dir" ] && rm -rf "$dir" && echo "已删除目录: $dir"
-    done
-
-    for service_file in /etc/systemd/system/wg-relay*.service; do
-        [ -f "$service_file" ] && rm -f "$service_file" && echo "已删除服务文件: $service_file"
-    done
-
-    for script in /usr/local/bin/wg-relay /usr/local/bin/wg-relay-stats /usr/local/bin/wg-rule-manager; do
-        [ -f "$script" ] && rm -f "$script" && echo "已删除脚本: $script"
-    done
-
-    [ -f "/etc/nginx/conf.d/wg-relay.conf" ] && \
-        rm -f "/etc/nginx/conf.d/wg-relay.conf" && \
-        echo "已删除Nginx配置"
-
-    for log_file in /var/log/wg-relay*.log; do
-        [ -f "$log_file" ] && rm -f "$log_file" && echo "已删除日志文件: $log_file"
-    done
-
-    (crontab -l 2>/dev/null | grep -v "wg-relay\|renew-wg-relay-cert") | crontab - 2>/dev/null && \
-        echo "已清理定时任务"
-
-    systemctl daemon-reload
+    stop_web_app 2>/dev/null
+    disable_nginx_proxy 2>/dev/null
+    cleanup_iptables_rules
+    remove_systemd_services 2>/dev/null
+    remove_files_and_dirs
+    
     echo ""
     echo "=========================================="
     echo "卸载完成！建议重启系统以确保所有更改生效。"
