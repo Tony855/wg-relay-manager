@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>规则管理 - 流量转发中继管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .navbar {
+            background-color: #fff;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: #fff;
+            padding: 20px;
+            border-right: 1px solid #dee2e6;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            overflow-y: auto;
+        }
+        .content {
+            margin-left: 250px;
+            padding: 20px;
+        }
+        .stat-card {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+        .stat-card .card-body {
+            padding: 20px;
+        }
+        .stats-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+        }
+        .stats-label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .bandwidth-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #fff;
+        }
+        .bandwidth-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .table-container {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+        .table th, .table td {
+            vertical-align: middle;
+        }
+        .table thead th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #555;
+        }
+        .rule-row:hover {
+            background-color: #f5f5f5;
+        }
+        .modal-dialog-centered {
+            display: flex;
+            align-items: center;
+            min-height: calc(100% - 1rem);
+        }
+        .modal-body code {
+            background-color: #e9ecef;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+        .form-check-input:checked {
+            background-color: #0d6efd;
+            border-color: #0d6efd;
+        }
+        .form-check-input:focus {
+            box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+        }
+        .sidebar .nav-link {
+            color: #333;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+        }
+        .sidebar .nav-link.active {
+            background-color: #007bff;
+            color: #fff;
+        }
+        .sidebar .nav-link:hover {
+            background-color: #e9ecef;
+        }
+        .sidebar .nav-link.active:hover {
+            background-color: #0056b3;
+        }
+        .sidebar .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #007bff;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .sidebar .logo i {
+            vertical-align: middle;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .navbar-nav .nav-link {
+            color: #333;
+        }
+        .navbar-nav .nav-link:hover {
+            color: #007bff;
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+        .progress-bar {
+            transition: width 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar d-flex flex-column">
+        <div class="logo">
+            <i class="bi bi-diagram-3-fill me-2"></i>{{ config.relay_name if config else '管理系统' }}
+        </div>
+        <ul class="nav nav-pills flex-column mb-auto">
+            <li class="nav-item">
+                <a href="/rules" class="nav-link active">
+                    <i class="bi bi-diagram-3 me-2"></i>规则管理
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="showConfigModal()">
+                    <i class="bi bi-gear me-2"></i>系统设置
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="#" class="nav-link" onclick="showLogsModal()">
+                    <i class="bi bi-file-text me-2"></i>系统日志
+                </a>
+            </li>
+        </ul>
+        <div class="mt-auto">
+            <hr>
+            <div class="dropdown">
+                <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" id="dropdownUser2" data-bs-toggle="dropdown" aria-expanded="false">
+                    <img src="https://avatars.githubusercontent.com/u/9919?s=200&v=4" alt="" width="32" height="32" class="rounded-circle me-2">
+                    <strong>{{ session.username if session.username else 'Guest' }}</strong>
+                </a>
+                <ul class="dropdown-menu text-small shadow" aria-labelledby="dropdownUser2">
+                    <li><a class="dropdown-item" href="/logout">登出</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="content">
+        <nav class="navbar navbar-expand-lg mb-4">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="#">仪表盘</a>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <span class="nav-link text-muted">
+                                <i class="bi bi-calendar me-1"></i>{{ now.strftime('%Y年%m月%d日 %H:%M:%S') }}
+                            </span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <main>
+            <div class="container-fluid pt-4 px-4">
+                <div class="row g-4">
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="stat-card card border-0">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="text-white rounded-3 p-3 me-3" style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);">
+                                    <i class="bi bi-cpu fs-4"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="stats-number" id="cpuUsage">0%</div>
+                                    <div class="stats-label">CPU使用率</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="stat-card card border-0">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="text-white rounded-3 p-3 me-3" style="background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">
+                                    <i class="bi bi-memory fs-4"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="stats-number" id="memoryUsage">0%</div>
+                                    <div class="stats-label">内存使用率</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="stat-card card border-0">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="text-white rounded-3 p-3 me-3" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+                                    <i class="bi bi-hdd fs-4"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="stats-number" id="diskUsage">0%</div>
+                                    <div class="stats-label">磁盘使用率</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="stat-card card border-0">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="text-white rounded-3 p-3 me-3" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);">
+                                    <i class="bi bi-diagram-3 fs-4"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="stats-number" id="connectionCount">0</div>
+                                    <div class="stats-label">规则连接数</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="stat-card card border-0">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="text-white rounded-3 p-3 me-3" style="background: linear-gradient(135deg, #a6c1ee 0%, #fbc2eb 100%);">
+                                    <i class="bi bi-clock-history fs-4"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="stats-number" id="uptimeValue">0天</div>
+                                    <div class="stats-label">运行时间</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-xl-2 col-md-4 col-sm-6">
+                        <div class="stat-card card border-0">
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="fw-bold">服务状态</span>
+                                    </div>
+                                    <div class="d-flex flex-column gap-2">
+                                        <div class="d-flex justify-content-between">
+                                            <span><i class="bi bi-globe me-1"></i>Web服务</span>
+                                            <span class="badge bg-success" id="webStatus">运行中</span>
+                                        </div>
+                                        <div class="d-flex justify-content-between">
+                                            <span><i class="bi bi-hdd-network me-1"></i>Nginx服务</span>
+                                            <span class="badge bg-success" id="nginxStatus">运行中</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="container-fluid pt-2 px-4">
+                <div class="card bg-primary text-white">
+                    <div class="card-body">
+                        <h6 class="mb-3">
+                            <i class="bi bi-speedometer2 me-2"></i>网络带宽监控
+                            <small class="ms-2 opacity-75">
+                                {{ config.public_interface if config else 'eth0' }} (公网IP: {{ config.public_ip if config and config.public_ip else '未知' }})
+                            </small>
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="bandwidth-value" id="uploadSpeed">0 bps</div>
+                                <div class="bandwidth-label">上传速度</div>
+                                <div class="progress mt-2" style="height: 6px;">
+                                    <div id="uploadProgress" class="progress-bar bg-info" style="width: 0%;"></div>
+                                </div>
+                                <small class="mt-2 d-block">累计: <span id="totalUpload">0 B</span></small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="bandwidth-value" id="downloadSpeed">0 bps</div>
+                                <div class="bandwidth-label">下载速度</div>
+                                <div class="progress mt-2" style="height: 6px;">
+                                    <div id="downloadProgress" class="progress-bar bg-success" style="width: 0%;"></div>
+                                </div>
+                                <small class="mt-2 d-block">累计: <span id="totalDownload">0 B</span></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="container-fluid px-4 pb-4">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="table-container">
+                            <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
+                                <h5 class="mb-0 fw-bold">
+                                    <i class="bi bi-funnel me-2"></i>端口转发规则
+                                </h5>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm" onclick="showRulesJson()">
+                                        <i class="bi bi-code-slash me-1"></i>规则配置
+                                    </button>
+                                    <button class="btn btn-primary btn-sm" onclick="showAddRuleModal()">
+                                        <i class="bi bi-plus-circle me-1"></i>添加规则
+                                    </button>
+                                    <button class="btn btn-success btn-sm" onclick="reloadAllRules()">
+                                        <i class="bi bi-arrow-repeat me-1"></i>重新加载
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 60px;">ID</th>
+                                            <th style="width: 180px;">规则信息</th>
+                                            <th style="width: 160px;">监听地址</th>
+                                            <th style="width: 160px;">目标地址</th>
+                                            <th style="width: 100px;">协议</th>
+                                            <th style="width: 120px;">实时速率</th>
+                                            <th style="width: 100px;">状态</th>
+                                            <th style="width: 140px;">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="rulesTableBody">
+                                        {% if rules and rules.forward_rules %}
+                                            {% for rule in rules.forward_rules %}
+                                            <tr id="rule-row-{{ rule.id }}" class="align-middle rule-row">
+                                                <td class="fw-bold">#{{ rule.id }}</td>
+                                                <td>
+                                                    <div class="fw-semibold">{{ rule.name }}</div>
+                                                    {% if rule.description %}
+                                                    <small class="text-muted d-block mt-1">{{ rule.description }}</small>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <code class="bg-light p-1 rounded">{{ rule.listen_ip }}:{{ rule.listen_port }}</code>
+                                                </td>
+                                                <td>
+                                                    <code class="bg-light p-1 rounded">{{ rule.target_ip }}:{{ rule.target_port }}</code>
+                                                </td>
+                                                <td>
+                                                    <span class="badge {% if rule.protocol == 'udp' %}bg-info{% else %}bg-secondary{% endif %}">
+                                                        {{ rule.protocol|upper }}
+                                                    </span>
+                                                </td>
+                                                <td id="rule-speed-{{ rule.id }}" style="width: 120px;">
+                                                    <div class="d-flex flex-column">
+                                                        <span class="speed-value fw-bold">
+                                                            {{ rule.traffic_stats.current_speed_formatted if rule.traffic_stats else '0 bps' }}
+                                                        </span>
+                                                        <small class="text-muted" id="rule-total-{{ rule.id }}">
+                                                            {{ rule.traffic_stats.total_bytes_formatted if rule.traffic_stats else '0 B' }}
+                                                        </small>
+                                                        <div class="progress mt-1" style="height: 3px;">
+                                                            <div id="rule-progress-{{ rule.id }}" class="progress-bar bg-success" style="width: 0%;"></div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td id="rule-status-{{ rule.id }}">
+                                                    {% if rule.enabled %}
+                                                    <span class="badge bg-success">启用</span>
+                                                    {% else %}
+                                                    <span class="badge bg-danger">禁用</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group">
+                                                        <button class="btn btn-sm btn-outline-primary" onclick="editRule({{ rule.id }})">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-{% if rule.enabled %}warning{% else %}success{% endif %}" 
+                                                                onclick="toggleRule({{ rule.id }})">
+                                                            {% if rule.enabled %}
+                                                            <i class="bi bi-pause"></i>
+                                                            {% else %}
+                                                            <i class="bi bi-play"></i>
+                                                            {% endif %}
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger" onclick="deleteRule({{ rule.id }})">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        {% else %}
+                                        <tr>
+                                            <td colspan="8" class="text-center py-5">
+                                                <div class="text-muted">
+                                                    <i class="bi bi-funnel display-4 mb-3"></i>
+                                                    <h5>暂无转发规则</h5>
+                                                    <p class="mb-4">开始创建您的第一个端口转发规则</p>
+                                                    <button class="btn btn-primary" onclick="showAddRuleModal()">
+                                                        <i class="bi bi-plus-circle me-1"></i>创建第一个规则
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endif %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            {% if rules and rules.forward_rules %}
+                            <div class="p-3 border-top bg-light">
+                                <div class="row align-items-center">
+                                    <div class="col-md-6">
+                                        <div class="d-flex gap-3">
+                                            <small>启用: <span class="fw-bold" id="enabledCount">{{ rules.forward_rules|selectattr('enabled')|list|length }}</span></small>
+                                            <small>禁用: <span class="fw-bold" id="disabledCount">{{ rules.forward_rules|rejectattr('enabled')|list|length }}</span></small>
+                                            <small>总计: <span class="fw-bold">{{ rules.forward_rules|length }}</span></small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 text-end">
+                                        <button class="btn btn-outline-primary btn-sm" onclick="refreshRules()">
+                                            <i class="bi bi-arrow-clockwise me-1"></i>刷新列表
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add/Edit Rule Modal -->
+            <div class="modal fade" id="ruleModal" tabindex="-1" aria-labelledby="ruleModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="ruleModalLabel">添加新规则</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="ruleForm">
+                                <input type="hidden" id="ruleId">
+                                <div class="mb-3">
+                                    <label for="ruleName" class="form-label">规则名称</label>
+                                    <input type="text" class="form-control" id="ruleName" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="ruleDescription" class="form-label">描述 (可选)</label>
+                                    <textarea class="form-control" id="ruleDescription" rows="2"></textarea>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="listenIp" class="form-label">监听IP</label>
+                                        <input type="text" class="form-control" id="listenIp" value="0.0.0.0" required>
+                                        <small class="form-text text-muted">0.0.0.0 表示监听所有IP</small>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="listenPort" class="form-label">监听端口</label>
+                                        <input type="number" class="form-control" id="listenPort" min="1" max="65535" required>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="targetIp" class="form-label">目标IP</label>
+                                        <input type="text" class="form-control" id="targetIp" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label for="targetPort" class="form-label">目标端口</label>
+                                        <input type="number" class="form-control" id="targetPort" min="1" max="65535" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="protocol" class="form-label">协议</label>
+                                    <select class="form-select" id="protocol" required>
+                                        <option value="tcp">TCP</option>
+                                        <option value="udp">UDP</option>
+                                    </select>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="ruleEnabled" checked>
+                                    <label class="form-check-label" for="ruleEnabled">启用规则</label>
+                                </div>
+                                <div class="alert alert-danger d-none" id="ruleErrorAlert" role="alert"></div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" id="saveRuleBtn">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rules JSON Modal -->
+            <div class="modal fade" id="rulesJsonModal" tabindex="-1" aria-labelledby="rulesJsonModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="rulesJsonModalLabel">规则配置 (JSON)</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <pre><code id="rulesJsonContent" class="language-json"></code></pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Config Modal -->
+            <div class="modal fade" id="configModal" tabindex="-1" aria-labelledby="configModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="configModalLabel">系统设置</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="configForm">
+                                <div class="mb-3">
+                                    <label for="relayNameConfig" class="form-label">中继名称</label>
+                                    <input type="text" class="form-control" id="relayNameConfig" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="webUserConfig" class="form-label">Web管理员用户名</label>
+                                    <input type="text" class="form-control" id="webUserConfig" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="newWebPassConfig" class="form-label">新密码 (留空则不修改)</label>
+                                    <input type="password" class="form-control" id="newWebPassConfig">
+                                </div>
+                                <div class="alert alert-danger d-none" id="configErrorAlert" role="alert"></div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" id="saveConfigBtn">保存</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs Modal -->
+            <div class="modal fade" id="logsModal" tabindex="-1" aria-labelledby="logsModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-xl modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="logsModalLabel">系统日志</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <pre><code id="logsContent" class="language-bash" style="max-height: 60vh; overflow-y: scroll;"></code></pre>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <footer class="footer mt-auto py-3 bg-light">
+            <div class="container-fluid text-center">
+                <span class="text-muted">© {{ now.year }} {{ config.relay_name if config else '流量转发中继管理系统' }}. All rights reserved.</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script>
+        let systemStatusInterval;
+        let rulesRefreshInterval;
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatBits(bits) {
+            if (bits === 0) return '0 bps';
+            const k = 1000; // For bits, usually 1000 is used
+            const sizes = ['bps', 'Kbps', 'Mbps', 'Gbps', 'Tbps', 'Pbps'];
+            const i = Math.floor(Math.log(bits) / Math.log(k));
+            return parseFloat((bits / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function updateSystemStatus() {
+            $.getJSON('/api/status', function(data) {
+                if (data.status === 'success') {
+                    const status = data.data;
+                    $('#cpuUsage').text(status.cpu_percent + '%');
+                    $('#memoryUsage').text(status.memory_percent + '%');
+                    $('#diskUsage').text(status.disk_percent + '%');
+                    $('#connectionCount').text(status.connection_stats);
+                    $('#uptimeValue').text(status.uptime);
+
+                    $('#webStatus').text(status.web_status === 'active' ? '运行中' : '未运行').removeClass('bg-success bg-danger').addClass(status.web_status === 'active' ? 'bg-success' : 'bg-danger');
+                    $('#nginxStatus').text(status.nginx_status === 'active' ? '运行中' : '未运行').removeClass('bg-success bg-danger').addClass(status.nginx_status === 'active' ? 'bg-success' : 'bg-danger');
+
+                    $('#uploadSpeed').text(status.upload_speed_formatted);
+                    $('#downloadSpeed').text(status.download_speed_formatted);
+                    $('#totalUpload').text(status.total_upload_formatted);
+                    $('#totalDownload').text(status.total_download_formatted);
+
+                    const maxSpeed = Math.max(status.upload_speed, status.download_speed, 1);
+                    $('#uploadProgress').css('width', (status.upload_speed / maxSpeed * 100) + '%');
+                    $('#downloadProgress').css('width', (status.download_speed / maxSpeed * 100) + '%');
+                }
+            });
+        }
+
+        function refreshRules() {
+            $.getJSON('/api/rules', function(data) {
+                if (data.status === 'success') {
+                    const rules = data.data;
+                    let rulesTableBody = $('#rulesTableBody');
+                    rulesTableBody.empty();
+
+                    if (rules.length === 0) {
+                        rulesTableBody.append(`
+                            <tr>
+                                <td colspan="8" class="text-center py-5">
+                                    <div class="text-muted">
+                                        <i class="bi bi-funnel display-4 mb-3"></i>
+                                        <h5>暂无转发规则</h5>
+                                        <p class="mb-4">开始创建您的第一个端口转发规则</p>
+                                        <button class="btn btn-primary" onclick="showAddRuleModal()">
+                                            <i class="bi bi-plus-circle me-1"></i>创建第一个规则
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `);
+                        $('.p-3.border-top.bg-light').hide();
+                    } else {
+                        rules.forEach(function(rule) {
+                            const statusBadge = rule.enabled ? '<span class="badge bg-success">启用</span>' : '<span class="badge bg-danger">禁用</span>';
+                            const toggleButton = rule.enabled ? 
+                                `<button class="btn btn-sm btn-outline-warning" onclick="toggleRule(${rule.rule_id})"><i class="bi bi-pause"></i></button>` :
+                                `<button class="btn btn-sm btn-outline-success" onclick="toggleRule(${rule.rule_id})"><i class="bi bi-play"></i></button>`;
+                            
+                            const speedValue = rule.traffic_stats ? rule.traffic_stats.current_speed_formatted : '0 bps';
+                            const totalTraffic = rule.traffic_stats ? rule.traffic_stats.total_bytes_formatted : '0 B';
+                            const maxSpeed10s = rule.traffic_stats ? rule.traffic_stats.max_speed_10s : 1; // Prevent division by zero
+                            const progressWidth = rule.traffic_stats ? (rule.traffic_stats.instant_speed / maxSpeed10s * 100) : 0;
+
+                            rulesTableBody.append(`
+                                <tr id="rule-row-${rule.rule_id}" class="align-middle rule-row">
+                                    <td class="fw-bold">#${rule.rule_id}</td>
+                                    <td>
+                                        <div class="fw-semibold">${rule.name}</div>
+                                        ${rule.description ? `<small class="text-muted d-block mt-1">${rule.description}</small>` : ''}
+                                    </td>
+                                    <td>
+                                        <code class="bg-light p-1 rounded">${rule.listen_ip}:${rule.listen_port}</code>
+                                    </td>
+                                    <td>
+                                        <code class="bg-light p-1 rounded">${rule.target_ip}:${rule.target_port}</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge ${rule.protocol === 'udp' ? 'bg-info' : 'bg-secondary'}">
+                                            ${rule.protocol.toUpperCase()}
+                                        </span>
+                                    </td>
+                                    <td id="rule-speed-${rule.rule_id}" style="width: 120px;">
+                                        <div class="d-flex flex-column">
+                                            <span class="speed-value fw-bold">${speedValue}</span>
+                                            <small class="text-muted" id="rule-total-${rule.rule_id}">${totalTraffic}</small>
+                                            <div class="progress mt-1" style="height: 3px;">
+                                                <div id="rule-progress-${rule.rule_id}" class="progress-bar bg-success" style="width: ${progressWidth}%;"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td id="rule-status-${rule.rule_id}">${statusBadge}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <button class="btn btn-sm btn-outline-primary" onclick="editRule(${rule.rule_id})">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            ${toggleButton}
+                                            <button class="btn btn-sm btn-outline-danger" onclick="deleteRule(${rule.rule_id})">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `);
+                        });
+                        $('.p-3.border-top.bg-light').show();
+                        $('#enabledCount').text(rules.filter(r => r.enabled).length);
+                        $('#disabledCount').text(rules.filter(r => !r.enabled).length);
+                    }
+                }
+            });
+        }
+
+        function showAddRuleModal() {
+            $('#ruleModalLabel').text('添加新规则');
+            $('#ruleId').val('');
+            $('#ruleForm')[0].reset();
+            $('#ruleEnabled').prop('checked', true);
+            $('#ruleErrorAlert').addClass('d-none').text('');
+            $('#ruleModal').modal('show');
+            $('#saveRuleBtn').off('click').on('click', addRule);
+        }
+
+        function editRule(ruleId) {
+            $.getJSON('/api/rules', function(data) {
+                if (data.status === 'success') {
+                    const rule = data.data.find(r => r.rule_id === ruleId);
+                    if (rule) {
+                        $('#ruleModalLabel').text('编辑规则 #' + ruleId);
+                        $('#ruleId').val(rule.rule_id);
+                        $('#ruleName').val(rule.name);
+                        $('#ruleDescription').val(rule.description);
+                        $('#listenIp').val(rule.listen_ip);
+                        $('#listenPort').val(rule.listen_port);
+                        $('#targetIp').val(rule.target_ip);
+                        $('#targetPort').val(rule.target_port);
+                        $('#protocol').val(rule.protocol);
+                        $('#ruleEnabled').prop('checked', rule.enabled);
+                        $('#ruleErrorAlert').addClass('d-none').text('');
+                        $('#ruleModal').modal('show');
+                        $('#saveRuleBtn').off('click').on('click', function() { updateRule(ruleId); });
+                    }
+                }
+            });
+        }
+
+        function addRule() {
+            const ruleData = {
+                name: $('#ruleName').val(),
+                description: $('#ruleDescription').val(),
+                listen_ip: $('#listenIp').val(),
+                listen_port: parseInt($('#listenPort').val()),
+                target_ip: $('#targetIp').val(),
+                target_port: parseInt($('#targetPort').val()),
+                protocol: $('#protocol').val(),
+                enabled: $('#ruleEnabled').is(':checked')
+            };
+
+            $.ajax({
+                url: '/api/rules/add',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(ruleData),
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#ruleModal').modal('hide');
+                        refreshRules();
+                    } else {
+                        $('#ruleErrorAlert').text(response.message).removeClass('d-none');
+                    }
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : '请求失败';
+                    $('#ruleErrorAlert').text(errorMsg).removeClass('d-none');
+                }
+            });
+        }
+
+        function updateRule(ruleId) {
+            const ruleData = {
+                name: $('#ruleName').val(),
+                description: $('#ruleDescription').val(),
+                listen_ip: $('#listenIp').val(),
+                listen_port: parseInt($('#listenPort').val()),
+                target_ip: $('#targetIp').val(),
+                target_port: parseInt($('#targetPort').val()),
+                protocol: $('#protocol').val(),
+                enabled: $('#ruleEnabled').is(':checked')
+            };
+
+            $.ajax({
+                url: '/api/rules/update/' + ruleId,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(ruleData),
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#ruleModal').modal('hide');
+                        refreshRules();
+                    } else {
+                        $('#ruleErrorAlert').text(response.message).removeClass('d-none');
+                    }
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : '请求失败';
+                    $('#ruleErrorAlert').text(errorMsg).removeClass('d-none');
+                }
+            });
+        }
+
+        function deleteRule(ruleId) {
+            if (confirm('确定要删除这条规则吗？')) {
+                $.ajax({
+                    url: '/api/rules/delete/' + ruleId,
+                    type: 'POST',
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            refreshRules();
+                        } else {
+                            alert('删除失败: ' + response.message);
+                        }
+                    },
+                    error: function(xhr) {
+                        const errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : '请求失败';
+                        alert('删除失败: ' + errorMsg);
+                    }
+                });
+            }
+        }
+
+        function toggleRule(ruleId) {
+            $.getJSON('/api/rules', function(data) {
+                if (data.status === 'success') {
+                    const rule = data.data.find(r => r.rule_id === ruleId);
+                    if (rule) {
+                        const newStatus = !rule.enabled;
+                        $.ajax({
+                            url: '/api/rules/toggle/' + ruleId,
+                            type: 'POST',
+                            contentType: 'application/json',
+                            data: JSON.stringify({ enabled: newStatus }),
+                            success: function(response) {
+                                if (response.status === 'success') {
+                                    refreshRules();
+                                } else {
+                                    alert('切换状态失败: ' + response.message);
+                                }
+                            },
+                            error: function(xhr) {
+                                const errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : '请求失败';
+                                alert('切换状态失败: ' + errorMsg);
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        function reloadAllRules() {
+            if (confirm('确定要重新加载所有规则吗？这会重新应用所有防火墙规则。')) {
+                $.ajax({
+                    url: '/api/rules/reload',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            alert('所有规则已重新加载！');
+                            refreshRules();
+                        } else {
+                            alert('重新加载失败: ' + response.message);
+                        }
+                    },
+                    error: function(xhr) {
+                        const errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : '请求失败';
+                        alert('重新加载失败: ' + errorMsg);
+                    }
+                });
+            }
+        }
+
+        function showRulesJson() {
+            $.getJSON('/api/rules', function(data) {
+                if (data.status === 'success') {
+                    $('#rulesJsonContent').text(JSON.stringify(data.data, null, 4));
+                    $('#rulesJsonModal').modal('show');
+                } else {
+                    alert('获取规则配置失败: ' + data.message);
+                }
+            });
+        }
+
+        function showConfigModal() {
+            $.getJSON('/api/config', function(data) {
+                if (data.status === 'success') {
+                    const config = data.data;
+                    $('#relayNameConfig').val(config.relay_name);
+                    $('#webUserConfig').val(config.web_user);
+                    $('#newWebPassConfig').val(''); // Clear password field
+                    $('#configErrorAlert').addClass('d-none').text('');
+                    $('#configModal').modal('show');
+                } else {
+                    alert('获取系统配置失败: ' + data.message);
+                }
+            });
+            $('#saveConfigBtn').off('click').on('click', saveConfig);
+        }
+
+        function saveConfig() {
+            const configData = {
+                relay_name: $('#relayNameConfig').val(),
+                web_user: $('#webUserConfig').val(),
+                new_web_pass: $('#newWebPassConfig').val()
+            };
+
+            $.ajax({
+                url: '/api/config',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(configData),
+                success: function(response) {
+                    if (response.status === 'success') {
+                        $('#configModal').modal('hide');
+                        alert('配置更新成功！');
+                        // Optionally refresh page or parts of it
+                        location.reload(); 
+                    } else {
+                        $('#configErrorAlert').text(response.message).removeClass('d-none');
+                    }
+                },
+                error: function(xhr) {
+                    const errorMsg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : '请求失败';
+                    $('#configErrorAlert').text(errorMsg).removeClass('d-none');
+                }
+            });
+        }
+
+        function showLogsModal() {
+            $.getJSON('/api/logs', function(data) {
+                if (data.status === 'success') {
+                    $('#logsContent').text(data.data.join(''));
+                    $('#logsModal').modal('show');
+                } else {
+                    alert('获取日志失败: ' + data.message);
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            updateSystemStatus();
+            refreshRules();
+            systemStatusInterval = setInterval(updateSystemStatus, 2000); // 每2秒更新一次系统状态
+            rulesRefreshInterval = setInterval(refreshRules, 5000); // 每5秒更新一次规则列表和流量
+        });
+
+        // Clear intervals on page unload to prevent memory leaks
+        $(window).on('beforeunload', function() {
+            clearInterval(systemStatusInterval);
+            clearInterval(rulesRefreshInterval);
+        });
+    </script>
+</body>
+</html>
