@@ -35,6 +35,10 @@ load_config_from_file # 加载配置到全局变量
 # 检查 root 权限
 check_root
 
+# 自动检测系统环境
+detect_os
+detect_network_interfaces
+
 # 显示欢迎信息
 show_welcome_message
 
