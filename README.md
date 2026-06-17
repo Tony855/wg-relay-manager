@@ -2,6 +2,8 @@
 
 这是一个用于管理 WireGuard 多中继服务器的增强脚本，它提供了一个命令行界面和一个可选的 Web 管理界面来简化规则的配置和监控。
 
+详细安装说明请参阅 [`INSTALL.md`](./INSTALL.md)。
+
 ## 功能特性
 
 *   **模块化设计**: 脚本被拆分为多个功能模块，易于维护和扩展。
@@ -40,17 +42,24 @@ wg-relay-manager/
 ### 1. 克隆仓库
 
 ```bash
-git clone https://github.com/your-username/wg-relay-manager.git
+git clone https://github.com/Tony855/wg-relay-manager.git
 cd wg-relay-manager
 ```
 
-### 2. 运行主脚本
+### 2. 使用 root 权限运行主脚本
 
 ```bash
 sudo bash main.sh
 ```
 
-脚本将引导您完成安装过程，包括依赖安装、系统配置、Web 界面设置等。
+脚本启动后，建议按以下顺序完成首次部署：
+
+1. 选择 `1. 安装/更新 WireGuard 中继环境`
+2. 选择 `4. 配置系统参数`
+3. 选择 `3. 启动/停止/重启 Web 管理界面`
+4. 如果需要 HTTPS，再执行 `重新配置 Nginx 和 SSL`
+
+完整步骤、升级流程和常见问题请查看 [`INSTALL.md`](./INSTALL.md)。
 
 ## 命令行菜单
 
