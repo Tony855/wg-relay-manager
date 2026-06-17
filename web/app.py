@@ -10,6 +10,7 @@
 import os
 import json
 import time
+import hashlib
 import subprocess
 from datetime import datetime, timedelta
 from functools import wraps
@@ -67,6 +68,25 @@ def login_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
+
+
+def is_legacy_sha256_hash(hash_value):
+    return (
+        isinstance(hash_value, str)
+        and len(hash_value) == 64
+        and all(ch in "0123456789abcdef" for ch in hash_value.lower())
+    )
+
+
+def verify_password(stored_hash, password):
+    if not stored_hash:
+        return False
+    if is_legacy_sha256_hash(stored_hash):
+        return hashlib.sha256(password.encode("utf-8")).hexdigest() == stored_hash.lower()
+    try:
+        return check_password_hash(stored_hash, password)
+    except ValueError:
+        return False
 
 
 # BUG FIX: 原代码 run_shell_command 总是使用 shell=True 并期待字符串命令，
@@ -224,9 +244,11 @@ def login():
         password = request.form.get("password", "")
         remember = bool(request.form.get("remember"))
 
-        # BUG FIX: 统一使用 werkzeug check_password_hash 验证
         if username == config.get("web_user") and \
-                check_password_hash(config.get("web_pass_hash", ""), password):
+                verify_password(config.get("web_pass_hash", ""), password):
+            if is_legacy_sha256_hash(config.get("web_pass_hash", "")):
+                config["web_pass_hash"] = generate_password_hash(password)
+                save_config(config)
             session["logged_in"] = True
             session["username"]  = username
             session.permanent    = remember
@@ -272,7 +294,7 @@ def api_status():
         disk_percent = float(disk_info) if disk_info else 0.0
 
         conn_count, _ = run_shell_command(
-            "wc -l /proc/net/nf_conntrack 2>/dev/null || echo 0", check=False
+            "cat /proc/net/nf_conntrack 2>/dev/null | wc -l", check=False
         )
         connection_stats = int(conn_count) if conn_count else 0
 

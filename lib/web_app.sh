@@ -29,6 +29,7 @@ create_web_app_files() {
 import os
 import json
 import time
+import hashlib
 import subprocess
 import threading
 import copy
@@ -72,6 +73,23 @@ def login_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated_function
+
+def is_legacy_sha256_hash(hash_value):
+    return (
+        isinstance(hash_value, str)
+        and len(hash_value) == 64
+        and all(ch in "0123456789abcdef" for ch in hash_value.lower())
+    )
+
+def verify_password(stored_hash, password):
+    if not stored_hash:
+        return False
+    if is_legacy_sha256_hash(stored_hash):
+        return hashlib.sha256(password.encode("utf-8")).hexdigest() == stored_hash.lower()
+    try:
+        return check_password_hash(stored_hash, password)
+    except ValueError:
+        return False
 
 def handle_errors(f):
     @wraps(f)
@@ -269,7 +287,10 @@ def login():
         password = request.form.get("password", "")
         remember = bool(request.form.get("remember"))
         if username == config.get("web_user") and \
-                check_password_hash(config.get("web_pass_hash", ""), password):
+                verify_password(config.get("web_pass_hash", ""), password):
+            if is_legacy_sha256_hash(config.get("web_pass_hash", "")):
+                config["web_pass_hash"] = generate_password_hash(password)
+                save_config(config)
             session["logged_in"] = True
             session["username"]  = username
             session["login_time"]= datetime.now().isoformat()

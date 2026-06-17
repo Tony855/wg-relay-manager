@@ -5,7 +5,7 @@
 # ===========================================
 
 # 防止重复加载
-[ -n "$UTILS_LOADED" ] && return
+[ -n "${UTILS_LOADED:-}" ] && return
 UTILS_LOADED=1
 
 # 颜色定义
@@ -97,6 +97,16 @@ info() {
 
 success() {
     echo -e "${GREEN}[成功]${NC} $1" | tee -a "$LOG_FILE"
+}
+
+generate_web_password_hash() {
+    local password="${1:-}"
+    printf '%s' "$password" | python3 -c '
+import sys
+from werkzeug.security import generate_password_hash
+
+print(generate_password_hash(sys.stdin.read()))
+'
 }
 
 # ============================ 系统检测函数 ============================

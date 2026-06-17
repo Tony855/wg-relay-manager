@@ -135,7 +135,7 @@ get_user_input() {
     info "Web管理员密码: $WEB_PASS"
     
     # 生成密码哈希
-    WEB_PASS_HASH=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(\'$WEB_PASS\'))" 2>/dev/null || echo "")
+    WEB_PASS_HASH=$(generate_web_password_hash "$WEB_PASS" 2>/dev/null || echo "")
     
     configure_ssl_options
     validate_inputs
@@ -168,7 +168,7 @@ configure_ssl_options() {
         info "已自动生成Web管理员密码: $WEB_PASS"
     fi
     
-    WEB_PASS_HASH=$(python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(\'$WEB_PASS\'))" 2>/dev/null || echo "")
+    WEB_PASS_HASH=$(generate_web_password_hash "$WEB_PASS" 2>/dev/null || echo "")
     
     if $SKIP_SSL; then
         ENABLE_SSL=false

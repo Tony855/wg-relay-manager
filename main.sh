@@ -275,7 +275,7 @@ configure_system_params() {
     local updates="{}"
     [ "$new_relay_name" != "$current_relay_name" ] && updates=$(echo "$updates" | jq ".relay_name = \"$new_relay_name\"")
     [ "$new_web_user" != "$current_web_user" ] && updates=$(echo "$updates" | jq ".web_user = \"$new_web_user\"")
-    [ -n "$new_web_pass" ] && updates=$(echo "$updates" | jq ".web_pass_hash = \"$(echo -n "$new_web_pass" | sha256sum | awk \'{print $1}\' )\"")
+    [ -n "$new_web_pass" ] && updates=$(echo "$updates" | jq --arg web_pass_hash "$(generate_web_password_hash "$new_web_pass")" '.web_pass_hash = $web_pass_hash')
     [ "$new_public_interface" != "$current_public_interface" ] && updates=$(echo "$updates" | jq ".public_interface = \"$new_public_interface\"")
 
     if [ "$updates" = "{}" ]; then
